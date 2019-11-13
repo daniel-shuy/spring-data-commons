@@ -11,4 +11,4 @@ cache:
 
 install: true
 
-script: "mvn clean dependency:list test -Pjava11,${PROFILE} -Dsort -U"
+script: "./mvnw clean dependency:list test -Pjava11,${PROFILE} -Dsort -U"
