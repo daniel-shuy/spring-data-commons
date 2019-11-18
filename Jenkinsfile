@@ -12,18 +12,39 @@ pipeline {
 	}
 
 	stages {
-		stage("Test") {
+		stage("test: baseline (jdk8)") {
 			when {
 				anyOf {
 					branch 'master'
 					not { triggeredBy 'UpstreamCause' }
 				}
 			}
+			agent {
+				docker {
+					image 'adoptopenjdk/openjdk8:latest'
+					label 'data'
+					args '-v $HOME:/tmp/jenkins-home'
+				}
+			}
+			options { timeout(time: 30, unit: 'MINUTES') }
+			steps {
+				sh 'rm -rf ?'
+				sh 'MAVEN_OPTS="-Duser.name=jenkins -Duser.home=/tmp/jenkins-home" ./mvnw clean dependency:list verify -Dsort -U -B'
+			}
+		}
+
+		stage("Test other configurations") {
 			parallel {
-				stage("test: baseline") {
+				stage("test: baseline (jdk11)") {
+					when {
+						anyOf {
+							branch 'master'
+							not { triggeredBy 'UpstreamCause' }
+						}
+					}
 					agent {
 						docker {
-							image 'adoptopenjdk/openjdk8:latest'
+							image 'adoptopenjdk/openjdk11:latest'
 							label 'data'
 							args '-v $HOME:/tmp/jenkins-home'
 						}
@@ -31,11 +52,33 @@ pipeline {
 					options { timeout(time: 30, unit: 'MINUTES') }
 					steps {
 						sh 'rm -rf ?'
-						sh 'MAVEN_OPTS="-Duser.name=jenkins -Duser.home=/tmp/jenkins-home" ./mvnw clean dependency:list verify -Dsort -U -B'
+						sh 'MAVEN_OPTS="-Duser.name=jenkins -Duser.home=/tmp/jenkins-home" ./mvnw -Pjava11 clean dependency:list verify -Dsort -U -B'
+					}
+				}
+
+				stage("test: baseline (jdk13)") {
+					when {
+						anyOf {
+							branch 'master'
+							not { triggeredBy 'UpstreamCause' }
+						}
+					}
+					agent {
+						docker {
+							image 'adoptopenjdk/openjdk13:latest'
+							label 'data'
+							args '-v $HOME:/tmp/jenkins-home'
+						}
+					}
+					options { timeout(time: 30, unit: 'MINUTES') }
+					steps {
+						sh 'rm -rf ?'
+						sh 'MAVEN_OPTS="-Duser.name=jenkins -Duser.home=/tmp/jenkins-home" ./mvnw -Pjava11 clean dependency:list verify -Dsort -U -B'
 					}
 				}
 			}
 		}
+
 		stage('Release to artifactory') {
 			when {
 				anyOf {
