@@ -19,6 +19,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -28,12 +31,12 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
 /**
- * {@link MultiValueMap} like data structure to keep lists of
- * {@link org.springframework.data.repository.query.spi.Function}s indexed by name and argument list length, where the
- * value lists are actually unique with respect to the signature.
+ * {@link MultiValueMap} like data structure to keep lists of {@link org.springframework.data.spel.spi.Function}s
+ * indexed by name and argument list length, where the value lists are actually unique with respect to the signature.
  *
  * @author Jens Schauder
  * @author Oliver Gierke
+ * @author Christoph Strobl
  * @since 2.1
  */
 class Functions {
@@ -43,7 +46,40 @@ class Functions {
 
 	private final MultiValueMap<String, Function> functions = new LinkedMultiValueMap<>();
 
-	void addAll(Map<String, Function> newFunctions) {
+	private final AtomicBoolean resolved = new AtomicBoolean(false);
+	private Map<Integer, Supplier<Map<String, ?>>> lazyFunctionInit = new ConcurrentSkipListMap<>();
+
+	/**
+	 * Order matters! <br />
+	 * Register functions for resolution in a given order (overrides if present!)
+	 *
+	 * @param position
+	 * @param functionSource
+	 * @since 2.1.14
+	 */
+	void lazyAddAt(int position, Supplier<Map<String, ?>> functionSource) {
+		lazyFunctionInit.put(position, functionSource);
+	}
+
+	private void initIfRequired() {
+
+		if (!resolved.compareAndSet(false, true)) {
+			return;
+		}
+
+		lazyFunctionInit.values().forEach(it -> {
+
+			Object source = it.get();
+			if (source instanceof MultiValueMap) {
+
+				this.addAll((MultiValueMap<String, Function>) source);
+			} else {
+				this.addAll((Map<String, Function>) source);
+			}
+		});
+	}
+
+	private void addAll(Map<String, Function> newFunctions) {
 
 		newFunctions.forEach((n, f) -> {
 
@@ -55,7 +91,7 @@ class Functions {
 		});
 	}
 
-	void addAll(MultiValueMap<String, Function> newFunctions) {
+	private void addAll(MultiValueMap<String, Function> newFunctions) {
 
 		newFunctions.forEach((k, list) -> {
 
@@ -68,6 +104,8 @@ class Functions {
 	}
 
 	List<Function> get(String name) {
+
+		initIfRequired();
 		return functions.getOrDefault(name, Collections.emptyList());
 	}
 
@@ -83,6 +121,7 @@ class Functions {
 	 */
 	Optional<Function> get(String name, List<TypeDescriptor> argumentTypes) {
 
+		initIfRequired();
 		Stream<Function> candidates = get(name).stream() //
 				.filter(f -> f.supports(argumentTypes));
 

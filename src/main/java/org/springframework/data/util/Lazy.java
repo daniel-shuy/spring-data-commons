@@ -21,6 +21,7 @@ import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -41,11 +42,11 @@ import org.springframework.util.Assert;
 @EqualsAndHashCode
 public class Lazy<T> implements Supplier<T> {
 
-	private static final Lazy<?> EMPTY = new Lazy<>(() -> null, null, true);
+	private static final Lazy<?> EMPTY = new Lazy<>(() -> null, null, new AtomicBoolean(true));
 
 	private final Supplier<? extends T> supplier;
 	private @Nullable T value = null;
-	private boolean resolved = false;
+	private AtomicBoolean resolved = new AtomicBoolean(false);
 
 	/**
 	 * Creates a new {@link Lazy} to produce an object lazily.
@@ -204,14 +205,11 @@ public class Lazy<T> implements Supplier<T> {
 
 		T value = this.value;
 
-		if (this.resolved) {
-			return value;
+		if (this.resolved.compareAndSet(false, true)) {
+
+			value = supplier.get();
+			this.value = value;
 		}
-
-		value = supplier.get();
-
-		this.value = value;
-		this.resolved = true;
 
 		return value;
 	}
