@@ -41,6 +41,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.ApplicationEventPublisherAware;
+import org.springframework.data.convert.EntityInstantiators;
 import org.springframework.data.mapping.MappingException;
 import org.springframework.data.mapping.PersistentEntity;
 import org.springframework.data.mapping.PersistentProperty;
@@ -48,6 +49,7 @@ import org.springframework.data.mapping.PersistentPropertyPath;
 import org.springframework.data.mapping.PersistentPropertyPaths;
 import org.springframework.data.mapping.PropertyPath;
 import org.springframework.data.mapping.model.ClassGeneratingPropertyAccessorFactory;
+import org.springframework.data.mapping.model.InstantiationAwarePropertyAccessorFactory;
 import org.springframework.data.mapping.model.MutablePersistentEntity;
 import org.springframework.data.mapping.model.PersistentPropertyAccessorFactory;
 import org.springframework.data.mapping.model.Property;
@@ -87,7 +89,7 @@ public abstract class AbstractMappingContext<E extends MutablePersistentEntity<?
 
 	private final Optional<E> NONE = Optional.empty();
 	private final Map<TypeInformation<?>, Optional<E>> persistentEntities = new HashMap<>();
-	private final PersistentPropertyAccessorFactory persistentPropertyAccessorFactory = new ClassGeneratingPropertyAccessorFactory();
+	private final PersistentPropertyAccessorFactory persistentPropertyAccessorFactory;
 	private final PersistentPropertyPathFactory<E, P> persistentPropertyPathFactory;
 
 	private @Nullable ApplicationEventPublisher applicationEventPublisher;
@@ -102,7 +104,14 @@ public abstract class AbstractMappingContext<E extends MutablePersistentEntity<?
 	private final Lock write = lock.writeLock();
 
 	protected AbstractMappingContext() {
+
 		this.persistentPropertyPathFactory = new PersistentPropertyPathFactory<>(this);
+
+		EntityInstantiators instantiators = new EntityInstantiators();
+		ClassGeneratingPropertyAccessorFactory accessorFactory = new ClassGeneratingPropertyAccessorFactory();
+
+		this.persistentPropertyAccessorFactory = new InstantiationAwarePropertyAccessorFactory(accessorFactory,
+				instantiators);
 	}
 
 	/*
